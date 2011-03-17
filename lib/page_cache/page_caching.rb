@@ -1,10 +1,10 @@
 module PageCache
   module PageCaching
-    
+
     def self.included(controller)
       controller.extend(ClassMethods)
     end
-    
+
     module ClassMethods
       def cached_pages(*actions)
         return unless perform_caching
@@ -14,12 +14,12 @@ module PageCache
         block_leaked_requests = options.delete(:block_leaked_requests)
         before_filter({:only => actions}.merge(options)) { |controller| controller.before_page_caching_action }
         after_filter({:only => actions}.merge(options)) { |controller| controller.do_page_caching }
-        PageCache::CachedPage.add_cached_pages(:controller => self, 
+        PageCache::CachedPage.add_cached_pages(:controller => self,
           :actions => actions, :expires_on => expires_on,
           :ttl => ttl, :block_leaked_requests => block_leaked_requests)
       end
     end
-    
+
     # A leaked request happens when the server does not respond to the user
     # with the static file but passes the request onto the Rails app unexpectedly.
     # This happens sometimes on Apache, due to a File move operation
@@ -34,9 +34,9 @@ module PageCache
     def leaked_request?
       !CacheUpdater.executing?
     end
-    
+
     def before_page_caching_action
-      CachedPage.current = CachedPage.find_by_url(request.url)
+      CachedPage.current = CachedPage.find_by_url(URI.parse(request.url).path)
       if leaked_request?
         if cached_page.nil?
           render_cached_page_not_found
@@ -47,20 +47,20 @@ module PageCache
         end
       end
     end
-    
+
     def cache_page_to_file?
       perform_caching && caching_allowed && CacheUpdater.executing?
     end
-    
+
     def do_page_caching
       cached_page.cache(response.body) if cache_page_to_file?
       CachedPage.current = nil
     end
-    
+
     def render_cached_page_not_found
       render :file => "#{RAILS_ROOT}/public/404.html", :status => :not_found
     end
-    
+
     def render_for_leaked_request
       successful = render_page_from_cache
       if successful
@@ -69,7 +69,7 @@ module PageCache
         Rails.logger.error("Leaked request for '#{cached_page}'. Cached file not available, error response will be given.")
       end
     end
-    
+
     # Return true if successfully rendered, otherwise false if the cached file
     # does not exist.
     def render_page_from_cache
@@ -81,10 +81,10 @@ module PageCache
         return false
       end
     end
-    
+
     def cached_page
       CachedPage.current
     end
-    
+
   end
 end
